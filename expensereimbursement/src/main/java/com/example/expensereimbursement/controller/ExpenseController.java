@@ -8,110 +8,160 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
 public class ExpenseController {
 
+    // Inject the ExpenseService to handle the business logic
     @Autowired
     private ExpenseService expenseService;
 
-    // Get all roles
+    // Endpoint to get all roles from the service layer
     @GetMapping("/roles")
     public List<Role> getAllRoles() {
-        return expenseService.getAllRoles();
+        return expenseService.getAllRoles();  // Fetch all roles using the service
     }
 
-    // Get all employees
+    // Endpoint to get all employees
     @GetMapping("/employees")
     public List<Employee> getAllEmployees() {
-        return expenseService.getAllEmployees();
+        return expenseService.getAllEmployees();  // Fetch all employees using the service
     }
 
-    // Get all categories
+    // Endpoint to get all categories from the service layer
     @GetMapping("/categories")
     public List<Category> getAllCategories() {
-        return expenseService.getAllCategories();
+        return expenseService.getAllCategories();  // Fetch all categories using the service
     }
 
-    // Get all expense statuses
+    // Endpoint to get all expense statuses from the service layer
     @GetMapping("/expense-statuses")
     public List<ExpenseStatus> getAllExpenseStatuses() {
-        return expenseService.getAllExpenseStatuses();
+        return expenseService.getAllExpenseStatuses();  // Fetch all expense statuses using the service
     }
 
-    // Get all expenses (approved, rejected, pending)
+    // Endpoint to get only pending expenses (filtered from all expenses)
     @GetMapping("/expenses")
     public List<Expense> getAllExpenses() {
-        return expenseService.getAllExpenses();
+        return expenseService.getAllExpenses();  // Fetch all pending expenses using the service
     }
 
-    // Get only pending expenses
-    @GetMapping("/expenses/pending")
-    public List<Expense> getPendingExpenses() {
-        return expenseService.getPendingExpenses();
-    }
-
-    // Add expense
+    // Endpoint to add a new expense
     @PostMapping("/expenses")
     public ResponseEntity<String> addExpense(@RequestBody Expense expense) {
-        String result = expenseService.addExpense(expense);
+        String result = expenseService.addExpense(expense);  // Call the service to add an expense
         if (result.startsWith("Error:")) {
-            return ResponseEntity.badRequest().body(result);
+            return ResponseEntity.badRequest().body(result);  // If there is an error, return a 400 Bad Request with the error message
         }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(result);  // Otherwise, return a 200 OK response with the success message
     }
 
-    // PATCH endpoint to update expense status
+    // Endpoint to update the status of an existing expense (using PATCH)
     @PatchMapping("/expenses/{expenseId}/status")
     public ResponseEntity<String> updateExpenseStatus(@PathVariable int expenseId, @RequestParam int statusId) {
-        String result = expenseService.updateExpenseStatus(expenseId, statusId);
+        String result = expenseService.updateExpenseStatus(expenseId, statusId);  // Call the service to update the status of an expense
         if (result.startsWith("Error:")) {
-            return ResponseEntity.badRequest().body(result);
+            return ResponseEntity.badRequest().body(result);  // Return 400 Bad Request with the error message if any
         }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(result);  // Return 200 OK with the success message if successful
     }
 
-
-    // New endpoint to get expenses by employee ID and date range
-    // New endpoint to get expenses by employee ID and date range
+    // New endpoint to get expenses by employee ID and a specified date range
     @GetMapping("/expenses/employee/{employeeId}")
     public ResponseEntity<List<Expense>> getExpensesByEmployeeAndDateRange(
             @PathVariable int employeeId,
             @RequestParam String startDate,
             @RequestParam String endDate) {
 
-        // Remove any leading/trailing whitespaces or newline characters from the input strings
+        // Trim any leading/trailing spaces from the date parameters
         startDate = startDate.trim();
         endDate = endDate.trim();
 
-        // Parse the start and end dates
-        LocalDate start = LocalDate.parse(startDate);  // e.g. "2024-12-01"
-        LocalDate end = LocalDate.parse(endDate);      // e.g. "2024-12-31"
+        // Parse the start and end dates to LocalDate objects
+        LocalDate start = LocalDate.parse(startDate);  // Convert the start date string to LocalDate
+        LocalDate end = LocalDate.parse(endDate);      // Convert the end date string to LocalDate
 
-        // Get the expenses from the service layer
+        // Call the service method to get expenses for the employee within the date range
         List<Expense> expenses = expenseService.getExpensesByEmployeeAndDateRange(employeeId, start, end);
 
-        // Return the expenses or a not found message
+        // If no expenses are found, return a 204 No Content response
         if (expenses.isEmpty()) {
-            return ResponseEntity.noContent().build();  // Return 204 No Content if no expenses found
+            return ResponseEntity.noContent().build();  // 204 No Content
         }
-        return ResponseEntity.ok(expenses);  // Return 200 OK with the expenses list
+        return ResponseEntity.ok(expenses);  // Otherwise, return 200 OK with the list of expenses
     }
 
-    // New endpoint to get expenses by status (history)
+    // New endpoint to get expenses filtered by their status (e.g., "Approved", "Rejected")
     @GetMapping("/expenses/history")
     public ResponseEntity<?> getExpenseHistoryByStatus(@RequestParam String statusName) {
         try {
+            // Call the service to fetch expenses by status
             List<Expense> expenses = expenseService.getExpensesByStatus(statusName.trim());
 
+            // If no expenses are found, return a 204 No Content response
             if (expenses.isEmpty()) {
-                return ResponseEntity.noContent().build(); // 204 No Content if no expenses found
+                return ResponseEntity.noContent().build();  // 204 No Content
             }
 
-            return ResponseEntity.ok(expenses); // Return 200 OK with the expenses list
+            return ResponseEntity.ok(expenses);  // Return 200 OK with the list of expenses
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage()); // Return 400 Bad Request for invalid status
+            // Return 400 Bad Request if the status name is invalid
+            return ResponseEntity.badRequest().body(e.getMessage());  // 400 Bad Request
         }
     }
+
+    // Endpoint to get all category packages available in the system
+    @GetMapping("/category-packages")
+    public ResponseEntity<List<CategoryPackage>> getAllCategoryPackages() {
+        List<CategoryPackage> categoryPackages = expenseService.getAllCategoryPackages();  // Fetch category packages from the service
+
+        // If no category packages are found, return a 204 No Content response
+        if (categoryPackages.isEmpty()) {
+            return ResponseEntity.noContent().build();  // 204 No Content
+        }
+
+        return ResponseEntity.ok(categoryPackages);  // Return 200 OK with the category packages
+    }
+
+    // Endpoint to get all role-category-package relationships
+    @GetMapping("/role-category-packages")
+    public ResponseEntity<List<RoleCategoryPackage>> getAllRoleCategoryPackages() {
+        List<RoleCategoryPackage> roleCategoryPackages = expenseService.getAllRoleCategoryPackages();  // Fetch role-category-packages from the service
+
+        // If no role-category-package relationships are found, return a 204 No Content response
+        if (roleCategoryPackages.isEmpty()) {
+            return ResponseEntity.noContent().build();  // 204 No Content
+        }
+
+        return ResponseEntity.ok(roleCategoryPackages);  // Return 200 OK with the role-category-package data
+    }
+
+    // Endpoint to validate an expense based on category package and role
+    @PostMapping("/expenses/validate")
+    public ResponseEntity<Boolean> validateExpense(@RequestBody ExpenseValidationRequest request) {
+        try {
+            // Call the service to validate the expense
+            boolean isValid = expenseService.validateExpense(request);
+            return ResponseEntity.ok(isValid);  // Return 200 OK with the validation result
+        } catch (IllegalArgumentException e) {
+            // Return 400 Bad Request if validation fails
+            return ResponseEntity.badRequest().body(false);  // 400 Bad Request
+        }
+    }
+
+    // New endpoint to fetch an employee's expense history categorized by expense type
+    @GetMapping("/employee-history-by-category/{employeeId}")
+    public ResponseEntity<Map<String, Object>> getEmployeeExpenseHistoryByCategory(@PathVariable int employeeId) {
+        try {
+            // Call the service method to process and return the expense history by category
+            Map<String, Object> response = expenseService.getEmployeeExpenseHistoryByCategory(employeeId);
+            return ResponseEntity.ok(response);  // Return 200 OK with the expense history data
+        } catch (IllegalArgumentException e) {
+            // Return 400 Bad Request if there is an error (e.g., invalid employee ID)
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));  // 400 Bad Request with the error message
+        }
+    }
+
 }

@@ -7,12 +7,15 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class ExpenseService {
 
+    // Repositories injected via Spring's Dependency Injection
     @Autowired
     private RoleRepository roleRepository;
 
@@ -28,42 +31,47 @@ public class ExpenseService {
     @Autowired
     private ExpenseRepository expenseRepository;
 
-    // Get all roles
+    @Autowired
+    private CategoryPackageRepository categoryPackageRepository;
+
+    @Autowired
+    private RoleCategoryPackageRepository roleCategoryPackageRepository;
+
+    // Get all roles from the database
     public List<Role> getAllRoles() {
         return roleRepository.findAll();
     }
 
-    // Get all employees
+    // Get all employees from the database
     public List<Employee> getAllEmployees() {
         return employeeRepository.findAll();
     }
 
-    // Get all categories
+    // Get all categories from the database
     public List<Category> getAllCategories() {
         return categoryRepository.findAll();
     }
 
-    // Get all expense statuses
+    // Get all expense statuses from the database
     public List<ExpenseStatus> getAllExpenseStatuses() {
         return expenseStatusRepository.findAll();
     }
 
-    // Get all expenses (approved, rejected, pending)
+    // Get only "Pending" expenses (assuming "Pending" has ID 1)
     public List<Expense> getAllExpenses() {
-        return expenseRepository.findAll();
-    }
-
-    // Get only pending expenses
-    public List<Expense> getPendingExpenses() {
-        Optional<ExpenseStatus> pendingStatus = expenseStatusRepository.findById(1); // Assuming "Pending" has ID 1
+        Optional<ExpenseStatus> pendingStatus = expenseStatusRepository.findById(1);
         if (pendingStatus.isEmpty()) {
-            return List.of();
+            return List.of(); // Return empty list if "Pending" status not found
         }
         return expenseRepository.findByStatus(pendingStatus.get());
     }
 
-    // Add expense with validations
-    // Add expense with validations
+    /**
+     * Add a new expense with various validations
+     *
+     * @param expense The expense object to be added
+     * @return A string indicating the result of the operation
+     */
     public String addExpense(Expense expense) {
         // Validate employee
         Optional<Employee> optionalEmployee = employeeRepository.findById(expense.getEmployee().getId());
@@ -73,7 +81,7 @@ public class ExpenseService {
 
         Employee employee = optionalEmployee.get();
 
-        // Validate employee role
+        // Validate employee's role
         Role role = employee.getRole();
         if (!role.isStatus()) {
             return "Error: Employee's role is not supported by the company.";
@@ -91,7 +99,7 @@ public class ExpenseService {
         }
 
         // Set expense status to "Pending"
-        Optional<ExpenseStatus> pendingStatus = expenseStatusRepository.findById(1); // Assuming "Pending" has ID 1
+        Optional<ExpenseStatus> pendingStatus = expenseStatusRepository.findById(1);
         if (pendingStatus.isEmpty()) {
             return "Error: Could not set expense status to pending.";
         }
@@ -100,15 +108,20 @@ public class ExpenseService {
         expense.setSubmitDate(LocalDateTime.now());
         expense.setApprovalDate(null); // Approval date not set initially
 
-        // Save expense
+        // Save expense to repository
         expenseRepository.save(expense);
         return "Expense submitted successfully!";
     }
 
-
-    // Method to update expense status by manager
+    /**
+     * Update the status of an expense (by a manager)
+     *
+     * @param expenseId The ID of the expense to update
+     * @param statusId The new status ID (2 for Approved, 3 for Rejected)
+     * @return A string indicating the result of the operation
+     */
     public String updateExpenseStatus(int expenseId, int statusId) {
-        // Validate expense existence
+        // Validate the existence of the expense
         Optional<Expense> optionalExpense = expenseRepository.findById(expenseId);
         if (optionalExpense.isEmpty()) {
             return "Error: Expense not found.";
@@ -116,11 +129,12 @@ public class ExpenseService {
 
         Expense expense = optionalExpense.get();
 
-        // Validate status ID (only 2 = Approved, 3 = Rejected allowed)
+        // Validate the provided status ID (Only 2 or 3 are allowed)
         if (statusId != 2 && statusId != 3) {
             return "Error: Invalid status ID. Only 'Approved' (2) or 'Rejected' (3) are allowed.";
         }
 
+        // Fetch the new status
         Optional<ExpenseStatus> optionalStatus = expenseStatusRepository.findById(statusId);
         if (optionalStatus.isEmpty()) {
             return "Error: Status not found.";
@@ -128,10 +142,10 @@ public class ExpenseService {
 
         ExpenseStatus status = optionalStatus.get();
 
-        // Update the expense status
+        // Update expense status
         expense.setStatus(status);
 
-        // Set approval date for 'Approved' (2) or 'Rejected' (3)
+        // Set approval date if status is "Approved" or "Rejected"
         if (statusId == 2 || statusId == 3) {
             expense.setApprovalDate(LocalDateTime.now());
         }
@@ -141,25 +155,37 @@ public class ExpenseService {
         return "Expense status updated successfully!";
     }
 
-    // New method to get expenses by employee ID and date range
+    /**
+     * Get expenses for a specific employee within a given date range
+     *
+     * @param employeeId The ID of the employee
+     * @param startDate The start date of the range
+     * @param endDate The end date of the range
+     * @return A list of expenses for the employee within the specified date range
+     */
     public List<Expense> getExpensesByEmployeeAndDateRange(int employeeId, LocalDate startDate, LocalDate endDate) {
-        // Convert startDate and endDate to LocalDateTime with proper time boundaries
-        LocalDateTime startDateTime = startDate.atStartOfDay(); // start at 12 AM
-        LocalDateTime endDateTime = endDate.atTime(23, 59, 59); // end at 11:59:59 PM
+        // Convert LocalDate to LocalDateTime to define time boundaries
+        LocalDateTime startDateTime = startDate.atStartOfDay(); // 12 AM
+        LocalDateTime endDateTime = endDate.atTime(23, 59, 59); // 11:59 PM
 
-        // Retrieve the employee
+        // Fetch the employee
         Optional<Employee> employee = employeeRepository.findById(employeeId);
         if (employee.isEmpty()) {
-            return List.of(); // Return empty list if employee not found
+            return List.of(); // Return an empty list if employee is not found
         }
 
-        // Get the expenses for the given employee within the date range
+        // Retrieve the expenses for the employee within the date range
         return expenseRepository.findByEmployeeAndSubmitDateBetween(employee.get(), startDateTime, endDateTime);
     }
 
-    // New method to fetch expenses by status
+    /**
+     * Get expenses filtered by their status (e.g., "Approved", "Rejected")
+     *
+     * @param statusName The status name to filter by (e.g., "Approved")
+     * @return A list of expenses matching the specified status
+     */
     public List<Expense> getExpensesByStatus(String statusName) {
-        // Find status by name
+        // Find the status by name
         Optional<ExpenseStatus> optionalStatus = expenseStatusRepository
                 .findAll()
                 .stream()
@@ -172,5 +198,147 @@ public class ExpenseService {
 
         // Fetch and return expenses with the given status
         return expenseRepository.findByStatus(optionalStatus.get());
+    }
+
+    // Get all CategoryPackage entities
+    public List<CategoryPackage> getAllCategoryPackages() {
+        return categoryPackageRepository.findAll();
+    }
+
+    /**
+     * Get all RoleCategoryPackage entities
+     *
+     * @return A list of all RoleCategoryPackage entities
+     */
+    public List<RoleCategoryPackage> getAllRoleCategoryPackages() {
+        List<RoleCategoryPackage> roleCategoryPackages = roleCategoryPackageRepository.findAll();
+
+        // Log the fetched data for debugging purposes
+        System.out.println("Fetched RoleCategoryPackage data: " + roleCategoryPackages);
+
+        return roleCategoryPackages;
+    }
+
+    /**
+     * Validate an expense based on role, category package, and expense amount
+     *
+     * @param request The ExpenseValidationRequest containing the validation details
+     * @return true if the expense is valid, false otherwise
+     */
+    public boolean validateExpense(ExpenseValidationRequest request) {
+        // Fetch the role by roleId
+        Optional<Role> optionalRole = roleRepository.findById(request.getRoleId().intValue());
+        if (optionalRole.isEmpty()) {
+            throw new IllegalArgumentException("Role not found for ID: " + request.getRoleId());
+        }
+
+        // Fetch the category package by categoryPackageId
+        Optional<CategoryPackage> optionalCategoryPackage = categoryPackageRepository.findById(request.getCategoryPackageId().intValue());
+        if (optionalCategoryPackage.isEmpty()) {
+            throw new IllegalArgumentException("Category Package not found for ID: " + request.getCategoryPackageId());
+        }
+
+        CategoryPackage categoryPackage = optionalCategoryPackage.get();
+
+        // Check if the role is associated with the category package
+        Optional<RoleCategoryPackage> roleCategoryPackage = roleCategoryPackageRepository
+                .findAll()
+                .stream()
+                .filter(rcp -> rcp.getRole().getId() == request.getRoleId().intValue() &&
+                        rcp.getCategoryPackage().getId() == request.getCategoryPackageId().intValue())
+                .findFirst();
+
+        if (roleCategoryPackage.isEmpty()) {
+            throw new IllegalArgumentException("Role is not associated with this Category Package.");
+        }
+
+        // Check if the expense amount is within the limit
+        return request.getExpenseAmount() <= categoryPackage.getExpenseLimit();
+    }
+
+    /**
+     * Get employee's expense history categorized by expense type and limit
+     *
+     * @param employeeId The ID of the employee
+     * @return A map containing expense details categorized by type, with remaining limits
+     */
+    public Map<String, Object> getEmployeeExpenseHistoryByCategory(int employeeId) {
+        // Fetch employee by ID
+        Optional<Employee> employeeOpt = employeeRepository.findById(employeeId);
+        if (employeeOpt.isEmpty()) {
+            throw new IllegalArgumentException("Employee not found.");
+        }
+
+        Employee employee = employeeOpt.get();
+
+        // Fetch the role of the employee
+        Role role = employee.getRole();
+        if (role == null || !role.isStatus()) {
+            throw new IllegalArgumentException("Employee role is not active.");
+        }
+
+        // Find category packages associated with the employee's role
+        List<RoleCategoryPackage> roleCategoryPackages = roleCategoryPackageRepository.findAll();
+        Map<Integer, CategoryPackage> categoryPackageMap = new HashMap<>();
+        for (RoleCategoryPackage rcp : roleCategoryPackages) {
+            if (rcp.getRole().getId() == role.getId()) {
+                categoryPackageMap.put(rcp.getCategoryPackage().getCategory().getId(), rcp.getCategoryPackage());
+            }
+        }
+
+        // Fetch all expenses of the employee (excluding "Pending" expenses)
+        List<Expense> expenses = expenseRepository.findByEmployee(employee);
+        Map<String, Integer> categoryTotalExpenses = new HashMap<>();
+
+        // Loop through expenses and sum them by category
+        for (Expense expense : expenses) {
+            // Skip "Pending" expenses
+            if (expense.getStatus().getName().equalsIgnoreCase("Pending")) {
+                continue;
+            }
+
+            // Add expenses to category totals
+            String categoryName = expense.getCategory().getName();
+            categoryTotalExpenses.put(categoryName, categoryTotalExpenses.getOrDefault(categoryName, 0) + expense.getAmount());
+        }
+
+        // Build the result response
+        Map<String, Object> result = new HashMap<>();
+        result.put("employeeName", employee.getName());
+        result.put("role", role.getName());
+
+        // Prepare category-wise details
+        Map<String, Object> categoryDetails = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : categoryTotalExpenses.entrySet()) {
+            String categoryName = entry.getKey();
+            Integer totalSpent = entry.getValue();
+
+            // Find category package for this category
+            Category category = categoryRepository.findByName(categoryName);
+            if (category != null) {
+                CategoryPackage categoryPackage = categoryPackageMap.get(category.getId());
+                if (categoryPackage != null) {
+                    int expenseLimit = categoryPackage.getExpenseLimit();
+                    int remainingAmount = expenseLimit - totalSpent;
+
+                    // Prepare category data and check if limit is exceeded
+                    Map<String, Object> categoryData = new HashMap<>();
+                    categoryData.put("expenseUsed", totalSpent);
+                    categoryData.put("remainingLimit", remainingAmount);
+
+                    // Add warning if the amount exceeds the limit
+                    if (remainingAmount < 0) {
+                        categoryData.put("warning", "You have exceeded the limit by " + Math.abs(remainingAmount) + ".");
+                    } else {
+                        categoryData.put("warning", "Remaining limit: " + remainingAmount);
+                    }
+
+                    categoryDetails.put(categoryName, categoryData);
+                }
+            }
+        }
+
+        result.put("categoryDetails", categoryDetails);
+        return result;
     }
 }

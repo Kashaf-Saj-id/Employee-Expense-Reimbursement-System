@@ -15,4 +15,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, Integer> {
 
     // Find expenses by employee and date range
     List<Expense> findByEmployeeAndSubmitDateBetween(Employee employee, LocalDateTime startDate, LocalDateTime endDate);
+
+    // Custom query method to find expenses by employee
+    List<Expense> findByEmployee(Employee employee);
 }
