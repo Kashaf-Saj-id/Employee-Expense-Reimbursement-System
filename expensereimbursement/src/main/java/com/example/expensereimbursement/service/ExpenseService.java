@@ -37,27 +37,42 @@ public class ExpenseService {
     @Autowired
     private RoleCategoryPackageRepository roleCategoryPackageRepository;
 
-    // Get all roles from the database
+    /**
+     * Fetches all roles from the database.
+     * @return List of all roles
+     */
     public List<Role> getAllRoles() {
         return roleRepository.findAll();
     }
 
-    // Get all employees from the database
+    /**
+     * Fetches all employees from the database.
+     * @return List of all employees
+     */
     public List<Employee> getAllEmployees() {
         return employeeRepository.findAll();
     }
 
-    // Get all categories from the database
+    /**
+     * Fetches all categories from the database.
+     * @return List of all categories
+     */
     public List<Category> getAllCategories() {
         return categoryRepository.findAll();
     }
 
-    // Get all expense statuses from the database
+    /**
+     * Fetches all expense statuses from the database.
+     * @return List of all expense statuses
+     */
     public List<ExpenseStatus> getAllExpenseStatuses() {
         return expenseStatusRepository.findAll();
     }
 
-    // Get only "Pending" expenses (assuming "Pending" has ID 1)
+    /**
+     * Fetches all expenses with a "Pending" status (assuming ID 1 is for "Pending").
+     * @return List of expenses with "Pending" status
+     */
     public List<Expense> getAllExpenses() {
         Optional<ExpenseStatus> pendingStatus = expenseStatusRepository.findById(1);
         if (pendingStatus.isEmpty()) {
@@ -67,10 +82,9 @@ public class ExpenseService {
     }
 
     /**
-     * Add a new expense with various validations
-     *
+     * Adds a new expense after performing validations for employee, role, and category.
      * @param expense The expense object to be added
-     * @return A string indicating the result of the operation
+     * @return A string message indicating success or error
      */
     public String addExpense(Expense expense) {
         // Validate employee
@@ -114,11 +128,10 @@ public class ExpenseService {
     }
 
     /**
-     * Update the status of an expense (by a manager)
-     *
+     * Updates the status of an existing expense (by a manager).
      * @param expenseId The ID of the expense to update
      * @param statusId The new status ID (2 for Approved, 3 for Rejected)
-     * @return A string indicating the result of the operation
+     * @return A string message indicating success or error
      */
     public String updateExpenseStatus(int expenseId, int statusId) {
         // Validate the existence of the expense
@@ -156,12 +169,11 @@ public class ExpenseService {
     }
 
     /**
-     * Get expenses for a specific employee within a given date range
-     *
+     * Retrieves expenses for a specific employee within a given date range.
      * @param employeeId The ID of the employee
      * @param startDate The start date of the range
      * @param endDate The end date of the range
-     * @return A list of expenses for the employee within the specified date range
+     * @return List of expenses for the employee within the specified date range
      */
     public List<Expense> getExpensesByEmployeeAndDateRange(int employeeId, LocalDate startDate, LocalDate endDate) {
         // Convert LocalDate to LocalDateTime to define time boundaries
@@ -179,36 +191,46 @@ public class ExpenseService {
     }
 
     /**
-     * Get expenses filtered by their status (e.g., "Approved", "Rejected")
-     *
-     * @param statusName The status name to filter by (e.g., "Approved")
-     * @return A list of expenses matching the specified status
+     * Retrieves expenses by status and category name. If no category is provided, returns all expenses for the status.
+     * @param statusId The status ID to filter expenses
+     * @param categoryName The category name to filter expenses, or null to return all categories
+     * @return List of expenses filtered by status and category
      */
-    public List<Expense> getExpensesByStatus(String statusName) {
-        // Find the status by name
-        Optional<ExpenseStatus> optionalStatus = expenseStatusRepository
-                .findAll()
-                .stream()
-                .filter(status -> status.getName().equalsIgnoreCase(statusName))
-                .findFirst();
-
+    public List<Expense> getExpensesByStatusAndCategory(int statusId, String categoryName) {
+        // Fetch the status by ID
+        Optional<ExpenseStatus> optionalStatus = expenseStatusRepository.findById(statusId);
         if (optionalStatus.isEmpty()) {
-            throw new IllegalArgumentException("Error: Invalid status name provided.");
+            throw new IllegalArgumentException("Error: Invalid status ID provided.");
         }
 
-        // Fetch and return expenses with the given status
-        return expenseRepository.findByStatus(optionalStatus.get());
+        ExpenseStatus status = optionalStatus.get();
+
+        // If no categoryName is provided, return all expenses for the given status, sorted by submitDate descending
+        if (categoryName == null || categoryName.isEmpty()) {
+            return expenseRepository.findByStatusOrderBySubmitDateDesc(status);
+        }
+
+        // Find the category by name using CategoryRepository
+        Category category = categoryRepository.findByName(categoryName);
+        if (category == null) {
+            throw new IllegalArgumentException("Error: Category not found with the name: " + categoryName);
+        }
+
+        // Fetch and return expenses with the given status and category, sorted by submitDate descending
+        return expenseRepository.findByStatusAndCategoryOrderBySubmitDateDesc(status, category);
     }
 
-    // Get all CategoryPackage entities
+    /**
+     * Fetches all category packages from the database.
+     * @return List of all category packages
+     */
     public List<CategoryPackage> getAllCategoryPackages() {
         return categoryPackageRepository.findAll();
     }
 
     /**
-     * Get all RoleCategoryPackage entities
-     *
-     * @return A list of all RoleCategoryPackage entities
+     * Retrieves all RoleCategoryPackage entities.
+     * @return List of all RoleCategoryPackage entities
      */
     public List<RoleCategoryPackage> getAllRoleCategoryPackages() {
         List<RoleCategoryPackage> roleCategoryPackages = roleCategoryPackageRepository.findAll();
@@ -220,8 +242,7 @@ public class ExpenseService {
     }
 
     /**
-     * Validate an expense based on role, category package, and expense amount
-     *
+     * Validates an expense based on the role, category package, and the expense amount.
      * @param request The ExpenseValidationRequest containing the validation details
      * @return true if the expense is valid, false otherwise
      */
@@ -257,8 +278,7 @@ public class ExpenseService {
     }
 
     /**
-     * Get employee's expense history categorized by expense type and limit
-     *
+     * Fetches the expense history for an employee categorized by expense type and limit.
      * @param employeeId The ID of the employee
      * @return A map containing expense details categorized by type, with remaining limits
      */
@@ -286,19 +306,15 @@ public class ExpenseService {
             }
         }
 
-        // Fetch all expenses of the employee (excluding "Pending" expenses)
+        // Fetch all expenses of the employee (including "Pending" expenses)
         List<Expense> expenses = expenseRepository.findByEmployee(employee);
         Map<String, Integer> categoryTotalExpenses = new HashMap<>();
 
         // Loop through expenses and sum them by category
         for (Expense expense : expenses) {
-            // Skip "Pending" expenses
-            if (expense.getStatus().getName().equalsIgnoreCase("Pending")) {
-                continue;
-            }
-
-            // Add expenses to category totals
             String categoryName = expense.getCategory().getName();
+
+            // Add expenses to category totals, including "Pending" expenses
             categoryTotalExpenses.put(categoryName, categoryTotalExpenses.getOrDefault(categoryName, 0) + expense.getAmount());
         }
 
@@ -341,4 +357,5 @@ public class ExpenseService {
         result.put("categoryDetails", categoryDetails);
         return result;
     }
+
 }

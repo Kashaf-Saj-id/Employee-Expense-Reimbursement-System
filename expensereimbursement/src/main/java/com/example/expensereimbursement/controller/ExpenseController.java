@@ -93,12 +93,14 @@ public class ExpenseController {
         return ResponseEntity.ok(expenses);  // Otherwise, return 200 OK with the list of expenses
     }
 
-    // New endpoint to get expenses filtered by their status (e.g., "Approved", "Rejected")
     @GetMapping("/expenses/history")
-    public ResponseEntity<?> getExpenseHistoryByStatus(@RequestParam String statusName) {
+    public ResponseEntity<?> getExpenseHistoryByStatusAndCategory(
+            @RequestParam int statusId,
+            @RequestParam(required = false) String categoryName) {
+
         try {
-            // Call the service to fetch expenses by status
-            List<Expense> expenses = expenseService.getExpensesByStatus(statusName.trim());
+            // Call the service to fetch expenses by statusId and categoryName
+            List<Expense> expenses = expenseService.getExpensesByStatusAndCategory(statusId, categoryName);
 
             // If no expenses are found, return a 204 No Content response
             if (expenses.isEmpty()) {
@@ -107,10 +109,12 @@ public class ExpenseController {
 
             return ResponseEntity.ok(expenses);  // Return 200 OK with the list of expenses
         } catch (IllegalArgumentException e) {
-            // Return 400 Bad Request if the status name is invalid
+            // Return 400 Bad Request if the status ID is invalid or category is not found
             return ResponseEntity.badRequest().body(e.getMessage());  // 400 Bad Request
         }
     }
+
+
 
     // Endpoint to get all category packages available in the system
     @GetMapping("/category-packages")

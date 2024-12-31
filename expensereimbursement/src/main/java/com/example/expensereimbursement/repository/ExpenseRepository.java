@@ -1,5 +1,6 @@
 package com.example.expensereimbursement.repository;
 
+import com.example.expensereimbursement.model.Category;
 import com.example.expensereimbursement.model.Employee;
 import com.example.expensereimbursement.model.Expense;
 import com.example.expensereimbursement.model.ExpenseStatus;
@@ -18,4 +19,12 @@ public interface ExpenseRepository extends JpaRepository<Expense, Integer> {
 
     // Custom query method to find expenses by employee
     List<Expense> findByEmployee(Employee employee);
+
+    // Find expenses by status, ordered by submitDate descending
+    List<Expense> findByStatusOrderBySubmitDateDesc(ExpenseStatus status);
+
+    // Find expenses by status and category, ordered by submitDate descending
+    List<Expense> findByStatusAndCategoryOrderBySubmitDateDesc(ExpenseStatus status, Category category);
+
+
 }
